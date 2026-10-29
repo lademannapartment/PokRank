@@ -24,7 +24,7 @@ from scraper_core import (
     build_gdansk_url,
     build_sopot_url,
     build_gdynia_url,
-    scrape_cards_and_get_ranks
+    scrape_cards_and_get_ranks, block_heavy_resources
 )
 
 
@@ -61,7 +61,7 @@ async def process_date_for_city(
 
     try:
         await page.goto(url, timeout=120000, wait_until="domcontentloaded")
-        await page.wait_for_load_state("networkidle")
+        await page.wait_for_selector('div[data-testid="property-card"]', timeout=15000)
         await asyncio.sleep(2)
 
         # cookies
@@ -150,6 +150,7 @@ async def main_async():
         )
 
         page = await context.new_page()
+        await block_heavy_resources(page)
 
         today = dt.date.today()
         #today = dt.date(2026, 2, 10)

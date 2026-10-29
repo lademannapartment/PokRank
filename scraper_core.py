@@ -102,6 +102,21 @@ def build_gdynia_apartments_url(checkin: dt.date, checkout: dt.date) -> str:
         "https://www.booking.com/searchresults.pl.html?"
         f"{base_params}&checkin={checkin_str}&checkout={checkout_str}"
     )
+async def block_heavy_resources(page: Page) -> None:
+    """Блокирует картинки, медиа, шрифты и трекеры: страница грузится быстрее, подгрузка надёжнее."""
+    blocked_types = {"image", "media", "font"}
+    blocked_hosts = ("doubleclick", "google-analytics", "googletagmanager", "facebook", "hotjar")
+
+    async def handler(route):
+        req = route.request
+        if req.resource_type in blocked_types or any(h in req.url for h in blocked_hosts):
+            await route.abort()
+        else:
+            await route.continue_()
+
+    await page.route("**/*", handler)
+
+
 # ============================================================
 #              CORE SCRAPING LOGIC
 # ============================================================
@@ -140,11 +155,9 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
     # Используем фиксированное количество итераций (как в вашем примере),
     # но с условиями выхода
     for iteration in range(50):
-        # 1. Плавный скроллинг (имитация человека)
-        await page.mouse.wheel(0, 3000)
+        # 1. Скролл к низу страницы (ленивая подгрузка срабатывает от скролла)
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         await asyncio.sleep(1)
-        await page.keyboard.press("End")
-        await asyncio.sleep(2)
 
         # 2. Получаем текущие заголовки через JS
         current_titles = await page.evaluate(f"""
@@ -192,31 +205,29 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
         if not remaining_to_find or already_scanned_count >= MAX_RANK or retries >= 10:
             break
 
-        # 4. Попытка нажать кнопку "Показать еще"
-        # Ищем ВИДИМУЮ кнопку "Załaduj więcej wyników": .first может указать на скрытый элемент
+        # 4. Нажимаем видимую кнопку "Załaduj więcej wyników" и ждём роста числа карточек
         try:
-            # Ищем по тексту: кнопка может быть не button/role=button (a, div, span)
-            clicked = await page.evaluate("""() => {
-                const phrase = 'Załaduj więcej wyników';
-                const all = Array.from(document.querySelectorAll('body *'));
-                for (const el of all) {
-                    if (el.children.length > 0) continue;          // берём листовые узлы с текстом
-                    if (!el.textContent || !el.textContent.includes(phrase)) continue;
-                    const r = el.getBoundingClientRect();
-                    if (r.width === 0 || r.height === 0) continue;   // только видимые
-                    const clickable = el.closest('button, a, [role="button"], div[tabindex], div') || el;
-                    clickable.scrollIntoView({block: 'center'});
-                    clickable.click();                               // JS-клик для GitHub Actions
-                    return true;
-                }
-                return false;
-            }""")
+            btn = page.locator("text=Załaduj więcej wyników")
+            clicked = False
+            for i in range(await btn.count()):
+                el = btn.nth(i)
+                if await el.is_visible():
+                    await el.scroll_into_view_if_needed()
+                    await el.click(force=True)
+                    clicked = True
+                    break
             if clicked:
                 print("      🔘 Нажата кнопка 'Załaduj więcej wyników'...")
+                try:
+                    await page.wait_for_function(
+                        f"document.querySelectorAll('{PROPERTY_CARD_SELECTOR}').length > {already_scanned_count}",
+                        timeout=8000,
+                    )
+                except TimeoutError:
+                    pass
+                await asyncio.sleep(1)
             elif iteration == 0:
                 print("      ⚠️ Кнопка 'Załaduj więcej wyników' не найдена на странице.")
-            if clicked:
-                await asyncio.sleep(4) # Даем больше времени на подгрузку
         except Exception as e:
             print(f"      ⚠️ Ошибка кнопки 'Załaduj': {e}")
 
