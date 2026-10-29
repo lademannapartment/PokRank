@@ -195,20 +195,26 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
         # 4. Попытка нажать кнопку "Показать еще"
         # Ищем ВИДИМУЮ кнопку "Załaduj więcej wyników": .first может указать на скрытый элемент
         try:
-            candidates = page.locator(SHOW_MORE_SELECTOR)
-            n = await candidates.count()
-            clicked = False
-            for i in range(n):
-                btn = candidates.nth(i)
-                if await btn.is_visible():
-                    await btn.scroll_into_view_if_needed()
-                    # Кликаем через JS — это критично для GitHub Actions!
-                    await btn.evaluate("node => node.click()")
-                    clicked = True
-                    print("      🔘 Нажата кнопка 'Załaduj więcej wyników'...")
-                    break
-            if not clicked and iteration == 0:
-                print(f"      ⚠️ Кнопка 'Załaduj' не видима (совпадений: {n}).")
+            # Ищем по тексту: кнопка может быть не button/role=button (a, div, span)
+            clicked = await page.evaluate("""() => {
+                const phrase = 'Załaduj więcej wyników';
+                const all = Array.from(document.querySelectorAll('body *'));
+                for (const el of all) {
+                    if (el.children.length > 0) continue;          // берём листовые узлы с текстом
+                    if (!el.textContent || !el.textContent.includes(phrase)) continue;
+                    const r = el.getBoundingClientRect();
+                    if (r.width === 0 || r.height === 0) continue;   // только видимые
+                    const clickable = el.closest('button, a, [role="button"], div[tabindex], div') || el;
+                    clickable.scrollIntoView({block: 'center'});
+                    clickable.click();                               // JS-клик для GitHub Actions
+                    return true;
+                }
+                return false;
+            }""")
+            if clicked:
+                print("      🔘 Нажата кнопка 'Załaduj więcej wyników'...")
+            elif iteration == 0:
+                print("      ⚠️ Кнопка 'Załaduj więcej wyników' не найдена на странице.")
             if clicked:
                 await asyncio.sleep(4) # Даем больше времени на подгрузку
         except Exception as e:
