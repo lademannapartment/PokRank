@@ -171,6 +171,7 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
         """)
 
         new_total = len(current_titles)
+        print(f"      [Итерация {iteration}] карточек в DOM: {new_total}, новых с прошлого раза: {new_total - already_scanned_count}, пустых подряд: {retries}")
 
         # 3. Анализ новых карточек
         if new_total > already_scanned_count:
@@ -217,15 +218,20 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
                     clicked = True
                     break
             if clicked:
-                print("      🔘 Нажата кнопка 'Załaduj więcej wyników'...")
+                cards_before = await page.evaluate(f"document.querySelectorAll('{PROPERTY_CARD_SELECTOR}').length")
+                print(f"      🔘 Клик #{iteration} 'Załaduj więcej wyników' (карточек до клика: {cards_before})")
                 try:
                     await page.wait_for_function(
-                        f"document.querySelectorAll('{PROPERTY_CARD_SELECTOR}').length > {already_scanned_count}",
+                        f"document.querySelectorAll('{PROPERTY_CARD_SELECTOR}').length > {cards_before}",
                         timeout=8000,
                     )
+                    print("         ↳ карточки появились")
                 except TimeoutError:
-                    pass
+                    print("         ↳ за 8 с новых карточек не появилось")
                 await asyncio.sleep(1)
+                cards_after = await page.evaluate(f"document.querySelectorAll('{PROPERTY_CARD_SELECTOR}').length")
+                still_visible = await btn.first.is_visible() if await btn.count() else False
+                print(f"         ↳ карточек после клика: {cards_after}, кнопка видна: {still_visible}")
             elif iteration == 0:
                 print("      ⚠️ Кнопка 'Załaduj więcej wyników' не найдена на странице.")
         except Exception as e:
