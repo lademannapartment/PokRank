@@ -213,4 +213,11 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
         print(f"   🎯 ВСЕ объекты найдены!")
     print("-" * 30 + "\n")
 
+    # Защита таблицы: при неполной загрузке (мало карточек) не возвращаем результат,
+    # иначе ненайденные комнаты очистятся
+    MIN_CARDS = 50
+    if already_scanned_count < MIN_CARDS:
+        print(f"   ⚠️ Загружено только {already_scanned_count} карточек (< {MIN_CARDS}). Результат не используется.")
+        return None, 0
+
     return found_ranks, mmrent_count
