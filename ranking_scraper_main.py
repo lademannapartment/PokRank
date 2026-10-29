@@ -20,6 +20,8 @@ from gsheet_service import (
     authorize_gspread
 )
 
+from log_tag import print, set_city
+
 from scraper_core import (
     build_gdansk_url,
     build_sopot_url,
@@ -39,6 +41,7 @@ async def process_date_for_city(
     listings_map: dict,
     date_obj: dt.date
 ):
+    set_city(city_name)
     print(f"\n>>>> ДАТА: {date_obj.strftime('%d.%m.%Y')}  —  {city_name} <<<<")
 
     if ws is None:

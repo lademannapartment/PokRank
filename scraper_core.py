@@ -10,6 +10,7 @@ import re
 # ============================================================
 
 import urllib.parse
+from log_tag import print
 
 def build_gdansk_url(checkin: dt.date, checkout: dt.date) -> str:
     base_url = "https://www.booking.com/searchresults.pl.html?"

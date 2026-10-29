@@ -9,6 +9,7 @@ from google.oauth2.service_account import Credentials
 from gspread.exceptions import APIError
 from config_listings import SPREADSHEET_URL, CREDENTIALS_FILE
 from config_listings import MMRENT_COUNT_COLUMN_GDANSK
+from log_tag import print
 
 # Global gspread client
 gc = None
