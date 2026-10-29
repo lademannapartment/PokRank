@@ -22,10 +22,6 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Декодируем секрет в JSON файл, который ждет скрипт
-      - name: Decode Google Credentials
-        run: echo "${{ secrets.G_KEYS_BASE64 }}" | base64 --decode > silken-glyph-443313-i4-cdf14b36288a.json
-
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -35,5 +31,5 @@ jobs:
       - name: Run Python script
         run: python ranking_scraper_main.py
         env:
-          # Пробрасываем путь к файлу в окружение
-          GOOGLE_APPLICATION_CREDENTIALS: silken-glyph-443313-i4-cdf14b36288a.json
+          # Секрет содержит JSON сервисного аккаунта как есть (без base64)
+          GOOGLE_CREDS: ${{ secrets.G_KEYS_BASE64 }}
