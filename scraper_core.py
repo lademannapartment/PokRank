@@ -137,6 +137,19 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
     # Расширенный селектор кнопки "Показать еще"
     SHOW_MORE_SELECTOR = "button:has-text('Załaduj więcej wyników'), button:has-text('Załaduj'), [role='button']:has-text('Załaduj więcej wyników'), button:has-text('Show more'), button:has-text('результатов'), button:has-text('больше')"
 
+    # Диагностика: счётчик результатов Booking (сколько объектов всего по запросу)
+    try:
+        total_text = await page.evaluate("""() => {
+            const el = document.querySelector('[data-testid="pagination"], [data-testid="results-count"], h1');
+            const all = Array.from(document.querySelectorAll('h1, div, span'))
+                .map(e => e.children.length === 0 ? e.textContent.trim() : '')
+                .filter(t => /\\d+\\s+(obiekt|wynik|property|properties|результат)/i.test(t));
+            return all.length ? all[0] : (el ? el.textContent.trim().slice(0, 120) : 'нет');
+        }""")
+        print(f"   📋 Счётчик результатов на странице: {total_text}")
+    except Exception as e:
+        print(f"   ⚠️ Не удалось прочитать счётчик результатов: {e}")
+
     found_ranks = {name: None for name in listings_map.keys()}
     remaining_to_find = {clean_text(name): name for name in listings_map.keys()}
     mmrent_count = 0
@@ -214,9 +227,26 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
                 el = btn.nth(i)
                 if await el.is_visible():
                     await el.scroll_into_view_if_needed()
-                    await el.click(force=True)
+                    box = await el.bounding_box()
+                    # Что реально находится в точке центра кнопки (перекрывает ли её что-то)
+                    covering = await page.evaluate(
+                        "([x, y]) => { const e = document.elementFromPoint(x, y); return e ? (e.tagName + ' ' + (e.className || '').toString().slice(0, 60)) : 'null'; }",
+                        [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
+                    ) if box else "нет координат"
+                    print(f"      🔎 Кнопка #{i}: в точке клика элемент = {covering}")
+                    if box and covering.startswith("null"):
+                        pass
+                    try:
+                        await el.click(force=True, timeout=5000)
+                        method = "force"
+                    except Exception as click_err:
+                        # Запасной вариант: клик через JS по самому элементу
+                        await el.evaluate("e => e.click()")
+                        method = f"js (после ошибки: {str(click_err)[:80]})"
                     clicked = True
+                    print(f"      🖱️ Клик методом: {method}")
                     break
+
             if clicked:
                 cards_before = await page.evaluate(f"document.querySelectorAll('{PROPERTY_CARD_SELECTOR}').length")
                 print(f"      🔘 Клик #{iteration} 'Załaduj więcej wyników' (карточек до клика: {cards_before})")
