@@ -188,8 +188,8 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
             retries += 1
 
         # Выход, если всё нашли или достигли лимита
-        # Останавливаемся, если всё найдено, достигнут лимит или 4 итерации подряд нет новых карточек
-        if not remaining_to_find or already_scanned_count >= MAX_RANK or retries >= 4:
+        # Останавливаемся, если всё найдено, достигнут лимит или 10 итераций подряд нет новых карточек
+        if not remaining_to_find or already_scanned_count >= MAX_RANK or retries >= 10:
             break
 
         # 4. Попытка нажать кнопку "Показать еще"
