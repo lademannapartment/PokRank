@@ -143,7 +143,7 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
             const el = document.querySelector('[data-testid="pagination"], [data-testid="results-count"], h1');
             const all = Array.from(document.querySelectorAll('h1, div, span'))
                 .map(e => e.children.length === 0 ? e.textContent.trim() : '')
-                .filter(t => /\\d+\\s+(obiekt|wynik|property|properties|результат)/i.test(t));
+                .filter(t => /\d+\s+(obiekt|wynik|property|properties|результат)/i.test(t));
             return all.length ? all[0] : (el ? el.textContent.trim().slice(0, 120) : 'нет');
         }""")
         print(f"   📋 Счётчик результатов на странице: {total_text}")
@@ -234,8 +234,6 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
                         [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
                     ) if box else "нет координат"
                     print(f"      🔎 Кнопка #{i}: в точке клика элемент = {covering}")
-                    if box and covering.startswith("null"):
-                        pass
                     try:
                         await el.click(force=True, timeout=5000)
                         method = "force"
