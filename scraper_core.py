@@ -120,7 +120,7 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
     TITLE_SELECTOR = 'h2, h3, [data-testid="title"], [class*="PropertyCardTitle"]'
     PROPERTY_CARD_SELECTOR = 'div[data-testid="property-card"]'
     # Расширенный селектор кнопки "Показать еще"
-    SHOW_MORE_SELECTOR = "button:has-text('Załaduj'), button:has-text('Show more'), button:has-text('результатов'), button:has-text('больше')"
+    SHOW_MORE_SELECTOR = "button:has-text('Załaduj więcej wyników'), button:has-text('Załaduj'), [role='button']:has-text('Załaduj więcej wyników'), button:has-text('Show more'), button:has-text('результатов'), button:has-text('больше')"
 
     found_ranks = {name: None for name in listings_map.keys()}
     remaining_to_find = {clean_text(name): name for name in listings_map.keys()}
@@ -193,15 +193,26 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
             break
 
         # 4. Попытка нажать кнопку "Показать еще"
+        # Ищем ВИДИМУЮ кнопку "Załaduj więcej wyników": .first может указать на скрытый элемент
         try:
-            show_more_btn = page.locator(SHOW_MORE_SELECTOR).first
-            if await show_more_btn.is_visible(timeout=1000):
-                # Кликаем через JS — это критично для GitHub Actions!
-                await show_more_btn.evaluate("node => node.click()")
-                print("      🔘 Нажата кнопка 'Показать еще'...")
+            candidates = page.locator(SHOW_MORE_SELECTOR)
+            n = await candidates.count()
+            clicked = False
+            for i in range(n):
+                btn = candidates.nth(i)
+                if await btn.is_visible():
+                    await btn.scroll_into_view_if_needed()
+                    # Кликаем через JS — это критично для GitHub Actions!
+                    await btn.evaluate("node => node.click()")
+                    clicked = True
+                    print("      🔘 Нажата кнопка 'Załaduj więcej wyników'...")
+                    break
+            if not clicked and iteration == 0:
+                print(f"      ⚠️ Кнопка 'Załaduj' не видима (совпадений: {n}).")
+            if clicked:
                 await asyncio.sleep(4) # Даем больше времени на подгрузку
-        except:
-            pass
+        except Exception as e:
+            print(f"      ⚠️ Ошибка кнопки 'Załaduj': {e}")
 
     # --- ФИНАЛЬНЫЙ ОТЧЕТ ---
     print("\n" + "-" * 30)
