@@ -149,11 +149,19 @@ async def main_async():
             viewport={"width": 1920, "height": 1080}
         )
 
-        page = await context.new_page()
-        await block_heavy_resources(page)
+        # Каждый город — своя вкладка, города обрабатываются параллельно
+        city_jobs = [
+            ("Гданьск", ws_gdansk, build_gdansk_url, LISTING_COLUMNS_GDANSK),
+            ("Сопот", ws_sopot, build_sopot_url, LISTING_COLUMNS_SOPOT),
+            ("Гдыня", ws_gdynia, build_gdynia_url, LISTING_COLUMNS_GDYNIA),
+        ]
+        city_pages = []
+        for _ in city_jobs:
+            city_page = await context.new_page()
+            await block_heavy_resources(city_page)
+            city_pages.append(city_page)
 
         today = dt.date.today()
-        #today = dt.date(2026, 2, 10)
         # ——— основной цикл по дням ———
         for i in range(DAYS_FORWARD):
 
@@ -163,21 +171,12 @@ async def main_async():
             print(f"📅 ДЕНЬ {i+1} — {date_obj.strftime('%d.%m.%Y')}")
             print("====================================")
 
-            # 1 — Гданьск
-            await process_date_for_city(
-              page, "Гданьск", ws_gdansk, build_gdansk_url, LISTING_COLUMNS_GDANSK, date_obj
-             )
+            await asyncio.gather(*(
+                process_date_for_city(city_page, name, ws, builder, columns, date_obj)
+                for city_page, (name, ws, builder, columns) in zip(city_pages, city_jobs)
+            ))
 
-            # 2 — Сопот
-            await process_date_for_city(
-              page, "Сопот", ws_sopot, build_sopot_url, LISTING_COLUMNS_SOPOT, date_obj
-          )
-
-            # 3 — Гдыня
-            await process_date_for_city(
-                page, "Гдыня", ws_gdynia, build_gdynia_url, LISTING_COLUMNS_GDYNIA, date_obj
-            )
-
+        await browser.close()
 
     print("\n🏁 ГОТОВО — ВСЕ ГОРОДА ОБРАБОТАНЫ\n")
 
