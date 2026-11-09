@@ -4,6 +4,7 @@ from typing import Tuple, Dict, Optional
 from playwright.async_api import Page, TimeoutError
 from config_listings import STAY_NIGHTS, MAX_RANK
 import re
+import unicodedata
 
 # ============================================================
 #                 BOOKING URL BUILDERS
@@ -129,8 +130,10 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
 
     def clean_text(text: str) -> str:
         if not text: return ""
-        decoded = html.unescape(text)
-        cleaned = re.sub(r'[^a-zA-Zа-яА-Я0-9\s]', ' ', decoded.lower())
+        decoded = html.unescape(text).lower()
+        # NFKD убирает диакритику: «Beksiński» -> «beksinski», «René» -> «rene»
+        decoded = unicodedata.normalize('NFKD', decoded).encode('ascii', 'ignore').decode()
+        cleaned = re.sub(r'[^a-z0-9\s]', ' ', decoded)
         return " ".join(cleaned.split())
 
     TITLE_SELECTOR = 'h2, h3, [data-testid="title"], [class*="PropertyCardTitle"]'
@@ -222,7 +225,7 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
 
         # 4. Нажимаем видимую кнопку "Załaduj więcej wyników" и ждём роста числа карточек
         try:
-            btn = page.locator("text=Załaduj więcej wyników")
+            btn = page.locator("text=Załaduj więcej wyników").or_(page.locator("text=Load more results"))
             clicked = False
             for i in range(await btn.count()):
                 el = btn.nth(i)
@@ -279,7 +282,8 @@ async def scrape_cards_and_get_ranks(page: Page, listings_map: dict, MAX_RANK: i
     # Защита таблицы: при неполной загрузке (мало карточек) не возвращаем результат,
     # иначе ненайденные комнаты очистятся
     MIN_CARDS = 50
-    if already_scanned_count < MIN_CARDS:
+    # Защита от неполной загрузки — только если не все объекты найдены
+    if remaining_to_find and already_scanned_count < MIN_CARDS:
         print(f"   ⚠️ Загружено только {already_scanned_count} карточек (< {MIN_CARDS}). Результат не используется.")
         return None, 0
 
